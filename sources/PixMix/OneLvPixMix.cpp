@@ -1,20 +1,23 @@
 #include "OneLvPixMix.h"
 
+#include <numeric>
+
 OneLvPixMix::OneLvPixMix()
 	: borderSize(2), borderSizePosMap(1), windowSize(5), toLeft(0, -1), toRight(0, 1), toUp(-1, 0), toDown(1, 0)
 {
 	vSptAdj = {
 		cv::Vec2i(-1, -1), cv::Vec2i(-1, 0), cv::Vec2i(-1, 1),
-		cv::Vec2i( 0, -1),                   cv::Vec2i( 0, 1),
-		cv::Vec2i( 1, -1), cv::Vec2i( 1, 0), cv::Vec2i( 1, 1)
+		cv::Vec2i(0, -1),                   cv::Vec2i(0, 1),
+		cv::Vec2i(1, -1), cv::Vec2i(1, 0), cv::Vec2i(1, 1)
 	};
 }
 
-OneLvPixMix::~OneLvPixMix() { }
+OneLvPixMix::~OneLvPixMix() {}
 
 void OneLvPixMix::init(
 	const cv::Mat_<cv::Vec3b> &color,
-	const cv::Mat_<uchar> &mask
+	const cv::Mat_<uchar> &mask,
+	const cv::Mat_<uchar> &discarding_area
 )
 {
 	std::random_device rnd;
@@ -24,14 +27,14 @@ void OneLvPixMix::init(
 
 	cv::copyMakeBorder(color, mColor[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
 	cv::copyMakeBorder(mask, mMask[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
+	cv::copyMakeBorder(discarding_area, mDiscardings[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
 	mColor[WO_BORDER] = cv::Mat(mColor[W_BORDER], cv::Rect(borderSize, borderSize, color.cols, color.rows));
 	mMask[WO_BORDER] = cv::Mat(mMask[W_BORDER], cv::Rect(borderSize, borderSize, mask.cols, mask.rows));
+	mDiscardings[WO_BORDER] = cv::Mat(mDiscardings[W_BORDER], cv::Rect(borderSize, borderSize, discarding_area.cols, discarding_area.rows));
 
 	mPosMap[WO_BORDER] = cv::Mat_<cv::Vec2i>(mColor[WO_BORDER].size());
-	for (int r = 0; r < mPosMap[WO_BORDER].rows; ++r)
-	{
-		for (int c = 0; c < mPosMap[WO_BORDER].cols; ++c)
-		{
+	for (int r = 0; r < mPosMap[WO_BORDER].rows; ++r) {
+		for (int c = 0; c < mPosMap[WO_BORDER].cols; ++c) {
 			if (mMask[WO_BORDER](r, c) == 0) mPosMap[WO_BORDER](r, c) = getValidRandPos();
 			else mPosMap[WO_BORDER](r, c) = cv::Vec2i(r, c);
 		}
@@ -50,8 +53,7 @@ void OneLvPixMix::execute(
 	const float acAlpha = 1.0f - scAlpha;
 	const float thDist = std::pow(std::max(mColor[WO_BORDER].cols, mColor[WO_BORDER].rows) * threshDist, 2.0f);
 
-	for (int itr = 0; itr < maxItr; ++itr)
-	{
+	for (int itr = 0; itr < maxItr; ++itr) {
 		cv::Mat_<cv::Vec3b> vizPosMap, vizColor;
 		Util::createVizPosMap(mPosMap[WO_BORDER], vizPosMap);
 		cv::resize(vizPosMap, vizPosMap, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
@@ -59,7 +61,7 @@ void OneLvPixMix::execute(
 		cv::resize(mColor[WO_BORDER], vizColor, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
 		cv::imshow("prev color", vizColor);
 		cv::waitKey(1);
-		
+
 		if (itr % 2 == 0) fwdUpdate(scAlpha, acAlpha, thDist, maxRandSearchItr);
 		else bwdUpdate(scAlpha, acAlpha, thDist, maxRandSearchItr);
 
@@ -76,12 +78,10 @@ void OneLvPixMix::execute(
 
 void OneLvPixMix::inpaint()
 {
-	for (int r = 0; r < mColor[WO_BORDER].rows; ++r)
-	{
+	for (int r = 0; r < mColor[WO_BORDER].rows; ++r) {
 		cv::Vec3b *ptrColor = mColor[WO_BORDER].ptr<cv::Vec3b>(r);
 		cv::Vec2i *ptrPosMap = mPosMap[WO_BORDER].ptr<cv::Vec2i>(r);
-		for (int c = 0; c < mColor[WO_BORDER].cols; ++c)
-		{
+		for (int c = 0; c < mColor[WO_BORDER].cols; ++c) {
 			ptrColor[c] = mColor[WO_BORDER](ptrPosMap[c]);
 		}
 	}
@@ -97,8 +97,7 @@ float OneLvPixMix::calcSptCost(
 	const float normFactor = maxDist * 2.0f;
 
 	float sc = 0.0f;
-	for (const auto &v : vSptAdj)
-	{
+	for (const auto &v : vSptAdj) {
 		cv::Vec2f diff((ref + v) - mPosMap[W_BORDER](target + cv::Vec2i(borderSizePosMap, borderSizePosMap) + v));
 		sc += std::min(diff.dot(diff), maxDist);
 	}
@@ -115,19 +114,15 @@ float OneLvPixMix::calcAppCost(
 	const float normFctor = 255.0f * 255.0f * 3.0f;
 
 	float ac = 0.0f;
-	for (int r = 0; r < windowSize; ++r)
-	{
+	for (int r = 0; r < windowSize; ++r) {
 		uchar *ptrMask = mMask[W_BORDER].ptr<uchar>(r + ref[0]);
 		cv::Vec3b *ptrTargetColor = mColor[W_BORDER].ptr<cv::Vec3b>(r + target[0]);
 		cv::Vec3b *ptrRefColor = mColor[W_BORDER].ptr<cv::Vec3b>(r + ref[0]);
-		for (int c = 0; c < windowSize; ++c)
-		{
-			if (ptrMask[c + ref[1]] == 0)
-			{
+		for (int c = 0; c < windowSize; ++c) {
+			if (ptrMask[c + ref[1]] == 0) {
 				ac += FLT_MAX / 25.0f;
 			}
-			else
-			{
+			else {
 				cv::Vec3f diff(cv::Vec3f(ptrTargetColor[c + target[1]]) - cv::Vec3f(ptrRefColor[c + ref[1]]));
 				ac += diff.dot(diff);
 			}
@@ -135,6 +130,15 @@ float OneLvPixMix::calcAppCost(
 	}
 
 	return ac * w / normFctor;
+}
+
+int OneLvPixMix::calcConstrCost(
+	const int row,
+	const int col
+)
+{
+	uchar* ptrDiscardings = mDiscardings[WO_BORDER].ptr<uchar>(row);
+	return ptrDiscardings[col] == 0 ? std::numeric_limits<int>::max() : 0;
 }
 
 
@@ -146,14 +150,11 @@ void OneLvPixMix::fwdUpdate(
 )
 {
 #pragma omp parallel for // NOTE: This is not thread-safe
-	for (int r = 0; r < mColor[WO_BORDER].rows; ++r)
-	{
+	for (int r = 0; r < mColor[WO_BORDER].rows; ++r) {
 		uchar *ptrMask = mMask[WO_BORDER].ptr<uchar>(r);
 		cv::Vec2i *ptrPosMap = mPosMap[WO_BORDER].ptr<cv::Vec2i>(r);
-		for (int c = 0; c < mColor[WO_BORDER].cols; ++c)
-		{
-			if (ptrMask[c] == 0)
-			{
+		for (int c = 0; c < mColor[WO_BORDER].cols; ++c) {
+			if (ptrMask[c] == 0) {
 				cv::Vec2i target(r, c);
 				cv::Vec2i ref = ptrPosMap[target[1]];
 				cv::Vec2i top = target + toUp;
@@ -166,25 +167,21 @@ void OneLvPixMix::fwdUpdate(
 				if (leftRef[1] >= mColor[WO_BORDER].cols) leftRef[1] = mPosMap[WO_BORDER](left)[1];
 
 				// propagate
-				float cost = scAlpha * calcSptCost(target, ref, thDist) + acAlpha * calcAppCost(target, ref);
+				float cost = scAlpha * calcSptCost(target, ref, thDist) + acAlpha * calcAppCost(target, ref) + calcConstrCost(ref[0], ref[1]);
 				float costTop = FLT_MAX, costLeft = FLT_MAX;
 
-				if (mMask[WO_BORDER](top) == 0 && mMask[WO_BORDER](topRef) != 0)
-				{
-					costTop = scAlpha * calcSptCost(target, topRef, thDist) + acAlpha * calcAppCost(target, topRef);
+				if (mMask[WO_BORDER](top) == 0 && mMask[WO_BORDER](topRef) != 0) {
+					costTop = scAlpha * calcSptCost(target, topRef, thDist) + acAlpha * calcAppCost(target, topRef) + calcConstrCost(topRef[0], topRef[1]);
 				}
-				if (mMask[WO_BORDER](left) == 0 && mMask[WO_BORDER](leftRef) != 0)
-				{
-					costLeft = scAlpha * calcSptCost(target, leftRef, thDist) + acAlpha * calcAppCost(target, leftRef);
+				if (mMask[WO_BORDER](left) == 0 && mMask[WO_BORDER](leftRef) != 0) {
+					costLeft = scAlpha * calcSptCost(target, leftRef, thDist) + acAlpha * calcAppCost(target, leftRef) + calcConstrCost(leftRef[0], leftRef[1]);
 				}
 
-				if (costTop < cost && costTop < costLeft)
-				{
+				if (costTop < cost && costTop < costLeft) {
 					cost = costTop;
 					ptrPosMap[target[1]] = topRef;
 				}
-				else if (costLeft < cost)
-				{
+				else if (costLeft < cost) {
 					cost = costLeft;
 					ptrPosMap[target[1]] = leftRef;
 				}
@@ -195,7 +192,7 @@ void OneLvPixMix::fwdUpdate(
 				float costRand = FLT_MAX;
 				do {
 					refRand = getValidRandPos();
-					costRand = scAlpha * calcSptCost(target, refRand, thDist) + acAlpha * calcAppCost(target, refRand);
+					costRand = scAlpha * calcSptCost(target, refRand, thDist) + acAlpha * calcAppCost(target, refRand) + calcConstrCost(refRand[0], refRand[1]);
 				} while (costRand >= cost && ++itrNum < maxRandSearchItr);
 
 				if (costRand < cost) ptrPosMap[target[1]] = refRand;
@@ -212,14 +209,11 @@ void OneLvPixMix::bwdUpdate(
 )
 {
 #pragma omp parallel for // NOTE: This is not thread-safe
-	for (int r = mColor[WO_BORDER].rows - 1; r >= 0; --r)
-	{
+	for (int r = mColor[WO_BORDER].rows - 1; r >= 0; --r) {
 		uchar *ptrMask = mMask[WO_BORDER].ptr<uchar>(r);
 		cv::Vec2i *ptrPosMap = mPosMap[WO_BORDER].ptr<cv::Vec2i>(r);
-		for (int c = mColor[WO_BORDER].cols - 1; c >= 0; --c)
-		{
-			if (ptrMask[c] == 0)
-			{
+		for (int c = mColor[WO_BORDER].cols - 1; c >= 0; --c) {
+			if (ptrMask[c] == 0) {
 				cv::Vec2i target(r, c);
 				cv::Vec2i ref = ptrPosMap[target[1]];
 				cv::Vec2i bottom = target + toDown;
@@ -232,25 +226,21 @@ void OneLvPixMix::bwdUpdate(
 				if (rightRef[1] < 0) rightRef[1] = 0;
 
 				// propagate
-				float cost = scAlpha * calcSptCost(target, ref, thDist) + acAlpha * calcAppCost(target, ref);
+				float cost = scAlpha * calcSptCost(target, ref, thDist) + acAlpha * calcAppCost(target, ref) + calcConstrCost(ref[0], ref[1]);
 				float costTop = FLT_MAX, costLeft = FLT_MAX;
 
-				if (mMask[WO_BORDER](bottom) == 0 && mMask[WO_BORDER](bottomRef) != 0)
-				{
-					costTop = scAlpha * calcSptCost(target, bottomRef, thDist) + acAlpha * calcAppCost(target, bottomRef);
+				if (mMask[WO_BORDER](bottom) == 0 && mMask[WO_BORDER](bottomRef) != 0) {
+					costTop = scAlpha * calcSptCost(target, bottomRef, thDist) + acAlpha * calcAppCost(target, bottomRef) + calcConstrCost(bottomRef[0], bottomRef[1]);
 				}
-				if (mMask[WO_BORDER](right) == 0 && mMask[WO_BORDER](rightRef) != 0)
-				{
-					costLeft = scAlpha * calcSptCost(target, rightRef, thDist) + acAlpha * calcAppCost(target, rightRef);
+				if (mMask[WO_BORDER](right) == 0 && mMask[WO_BORDER](rightRef) != 0) {
+					costLeft = scAlpha * calcSptCost(target, rightRef, thDist) + acAlpha * calcAppCost(target, rightRef) + calcConstrCost(rightRef[0], rightRef[1]);
 				}
 
-				if (costTop < cost && costTop < costLeft)
-				{
+				if (costTop < cost && costTop < costLeft) {
 					cost = costTop;
 					ptrPosMap[target[1]] = bottomRef;
 				}
-				else if (costLeft < cost)
-				{
+				else if (costLeft < cost) {
 					cost = costLeft;
 					ptrPosMap[target[1]] = rightRef;
 				}
@@ -261,7 +251,7 @@ void OneLvPixMix::bwdUpdate(
 				float costRand = FLT_MAX;
 				do {
 					refRand = getValidRandPos();
-					costRand = scAlpha * calcSptCost(target, refRand, thDist) + acAlpha * calcAppCost(target, refRand);
+					costRand = scAlpha * calcSptCost(target, refRand, thDist) + acAlpha * calcAppCost(target, refRand) + calcConstrCost(refRand[0], refRand[1]);
 				} while (costRand >= cost && ++itrNum < maxRandSearchItr);
 
 				if (costRand < cost) ptrPosMap[target[1]] = refRand;

@@ -11,12 +11,13 @@ public:
 	OneLvPixMix();
 	~OneLvPixMix();
 
-	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask);
+	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area);
 	// NOTE: Increasing "maxItr" and "maxRandSearchItr" will improve the quality of results but will decrease the speed as well
 	void execute(const float scAlpha, const int maxItr, const int maxRandSearchItr, const float threshDist);
 
 	cv::Mat_<cv::Vec3b> *getColorPtr();
 	cv::Mat_<uchar> *getMaskPtr();
+	cv::Mat_<uchar> *getDiscardingAreaPtr();
 	cv::Mat_<cv::Vec2i> *getPosMapPtr();
 
 private:
@@ -27,6 +28,7 @@ private:
 	enum { WO_BORDER = 0, W_BORDER = 1 };
 	cv::Mat_<cv::Vec3b> mColor[2];
 	cv::Mat_<uchar> mMask[2];
+	cv::Mat_<uchar> mDiscardings[2];
 	cv::Mat_<cv::Vec2i> mPosMap[2];	// current position map: f
 
 	const cv::Vec2i toLeft;
@@ -54,6 +56,10 @@ private:
 		const cv::Vec2i &ref,
 		float w = 0.04f		// 1.0f / 25.0f
 	);
+	int calcConstrCost(
+		const int row,
+		const int col
+	);
 
 	void fwdUpdate(
 		const float scAlpha,
@@ -77,6 +83,10 @@ inline cv::Mat_<uchar> *OneLvPixMix::getMaskPtr()
 {
 	return &(mMask[WO_BORDER]);
 }
+inline cv::Mat_<uchar> *OneLvPixMix::getDiscardingAreaPtr()
+{
+	return &(mDiscardings[WO_BORDER]);
+}
 inline cv::Mat_<cv::Vec2i> *OneLvPixMix::getPosMapPtr()
 {
 	return &mPosMap[WO_BORDER];
@@ -87,7 +97,7 @@ inline cv::Vec2i OneLvPixMix::getValidRandPos()
 	cv::Vec2i p;
 	do {
 		p = cv::Vec2i(rRand(mt), cRand(mt));
-	} while (mMask[WO_BORDER](p) != 255);
+	} while (mMask[WO_BORDER](p) != 255 || mDiscardings[WO_BORDER](p) != 255);
 
 	return p;
 }

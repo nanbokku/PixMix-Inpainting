@@ -1,38 +1,46 @@
 #include "PixMix.h"
 
-PixMix::PixMix() { }
-PixMix::~PixMix() { }
+PixMix::PixMix() {}
+PixMix::~PixMix() {}
 
 void PixMix::init(
 	const cv::Mat_<cv::Vec3b> &color,
 	const cv::Mat_<uchar> &mask,
+	const cv::Mat_<uchar> &discarding_area,
 	const int blurSize
 )
 {
 	assert(color.size() == mask.size());
+	assert(color.size() == discarding_area.size());
 
 	pm.resize(calcPyrmLv(color.cols, color.rows));
 
-	pm[0].init(color, mask);
-	for (int lv = 1; lv < pm.size(); ++lv)
-	{
+	pm[0].init(color, mask, discarding_area);
+	for (int lv = 1; lv < pm.size(); ++lv) {
 		cv::Size lvSize = pm[lv - 1].getColorPtr()->size() / 2;
 
 		cv::Mat_<cv::Vec3b> tmpColor;
 		cv::resize(*(pm[lv - 1].getColorPtr()), tmpColor, lvSize, 0.0, 0.0, cv::INTER_LINEAR);
-		
+
 		cv::Mat_<uchar> tmpMask;
 		cv::resize(*(pm[lv - 1].getMaskPtr()), tmpMask, lvSize, 0.0, 0.0, cv::INTER_LINEAR);
-		for (int r = 0; r < tmpMask.rows; ++r)
-		{
+		for (int r = 0; r < tmpMask.rows; ++r) {
 			uchar *ptrMask = tmpMask.ptr<uchar>(r);
-			for (int c = 0; c < tmpMask.cols; ++c)
-			{
+			for (int c = 0; c < tmpMask.cols; ++c) {
 				ptrMask[c] = ptrMask[c] < 255 ? 0 : 255;
 			}
 		}
 
-		pm[lv].init(tmpColor, tmpMask);
+		cv::Mat_<uchar> tmpDiscardings;
+		cv::resize(*(pm[lv - 1].getDiscardingAreaPtr()), tmpDiscardings, lvSize, 0.0, 0.0, cv::INTER_LINEAR);
+		for (int r = 0; r < tmpDiscardings.rows; ++r) {
+			uchar *ptrDiscardings = tmpDiscardings.ptr<uchar>(r);
+			for (int c = 0; c < tmpDiscardings.cols; ++c) {
+				ptrDiscardings[c] = ptrDiscardings[c] < 255 ? 0 : 255;
+			}
+		}
+
+		pm[lv].init(tmpColor, tmpMask, tmpDiscardings);
 	}
 
 	// for the final composite
@@ -45,8 +53,7 @@ void PixMix::execute(
 	const float alpha
 )
 {
-	for (int lv = int(pm.size()) - 1; lv >= 0; --lv)
-	{
+	for (int lv = int(pm.size()) - 1; lv >= 0; --lv) {
 		pm[lv].execute(alpha, 2, 1, 0.5f);
 		if (lv > 0) fillInLowerLv(pm[lv], pm[lv - 1]);
 	}
@@ -76,11 +83,9 @@ void PixMix::fillInLowerLv(
 	cv::resize(*(pmUpper.getColorPtr()), mColorUpsampled, pmLower.getColorPtr()->size(), 0.0, 0.0, cv::INTER_LINEAR);
 	cv::Mat_<cv::Vec2i> mPosMapUpsampled;
 	cv::resize(*(pmUpper.getPosMapPtr()), mPosMapUpsampled, pmLower.getPosMapPtr()->size(), 0.0, 0.0, cv::INTER_NEAREST);
-	for (int r = 0; r < mPosMapUpsampled.rows; ++r)
-	{
+	for (int r = 0; r < mPosMapUpsampled.rows; ++r) {
 		cv::Vec2i *ptr = mPosMapUpsampled.ptr<cv::Vec2i>(r);
-		for (int c = 0; c < mPosMapUpsampled.cols; ++c)
-		{
+		for (int c = 0; c < mPosMapUpsampled.cols; ++c) {
 			ptr[c] = ptr[c] * 2 + cv::Vec2i(r % 2, c % 2);
 		}
 	}
@@ -91,17 +96,14 @@ void PixMix::fillInLowerLv(
 
 	const int wLw = pmLower.getColorPtr()->cols;
 	const int hLw = pmLower.getColorPtr()->rows;
-	for (int r = 0; r < hLw; ++r)
-	{
+	for (int r = 0; r < hLw; ++r) {
 		cv::Vec3b *ptrColorLw = mColorLw.ptr<cv::Vec3b>(r);
 		cv::Vec3b *ptrColorUpsampled = mColorUpsampled.ptr<cv::Vec3b>(r);
 		uchar *ptrMaskLw = mMaskLw.ptr<uchar>(r);
 		cv::Vec2i *ptrPosMapLw = mPosMapLw.ptr<cv::Vec2i>(r);
 		cv::Vec2i *ptrPosMapUpsampled = mPosMapUpsampled.ptr<cv::Vec2i>(r);
-		for (int c = 0; c < wLw; ++c)
-		{
-			if (ptrMaskLw[c] == 0)
-			{
+		for (int c = 0; c < wLw; ++c) {
+			if (ptrMaskLw[c] == 0) {
 				ptrColorLw[c] = ptrColorUpsampled[c];
 				ptrPosMapLw[c] = ptrPosMapUpsampled[c];
 			}
@@ -120,14 +122,12 @@ void PixMix::blendBorder(
 	cv::Mat_<float> mAlphaF;
 	mAlpha.convertTo(mAlphaF, CV_32F, 1.0 / 255.0);
 
-	for (int r = 0; r < mColor.rows; ++r)
-	{
+	for (int r = 0; r < mColor.rows; ++r) {
 		cv::Vec3f *ptrSrc = mColorF.ptr<cv::Vec3f>(r);
 		cv::Vec3f *ptrPM = mPMColorF.ptr<cv::Vec3f>(r);
 		cv::Vec3f *ptrDst = mDstF.ptr<cv::Vec3f>(r);
 		float *ptrAlpha = mAlphaF.ptr<float>(r);
-		for (int c = 0; c < mColor.cols; ++c)
-		{
+		for (int c = 0; c < mColor.cols; ++c) {
 			ptrDst[c] = ptrAlpha[c] * ptrSrc[c] + (1.0f - ptrAlpha[c]) * ptrPM[c];
 		}
 	}
