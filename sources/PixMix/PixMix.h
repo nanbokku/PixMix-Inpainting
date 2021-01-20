@@ -9,8 +9,8 @@ public:
 	PixMix();
 	~PixMix();
 
-	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area, const int blurSize = 5);
-	void execute(cv::Mat_<cv::Vec3b> &dst, const float alpha);
+	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area, const cv::Mat_<uchar>& gradient, const int blurSize = 5);
+	void execute(cv::Mat_<cv::Vec3b> &dst, const float scAlpha, const float acAlpha);
 
 private:
 	std::vector<OneLvPixMix> pm;

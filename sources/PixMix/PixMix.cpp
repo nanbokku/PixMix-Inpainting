@@ -7,6 +7,7 @@ void PixMix::init(
 	const cv::Mat_<cv::Vec3b> &color,
 	const cv::Mat_<uchar> &mask,
 	const cv::Mat_<uchar> &discarding_area,
+    const cv::Mat_<uchar> &gradient,
 	const int blurSize
 )
 {
@@ -15,7 +16,11 @@ void PixMix::init(
 
 	pm.resize(calcPyrmLv(color.cols, color.rows));
 
-	pm[0].init(color, mask, discarding_area);
+    //threshold(gradient, gradient, 50, 255, CV_THRESH_BINARY);
+    //cv::imshow("edge", gradient);
+    //cv::waitKey();
+
+	pm[0].init(color, mask, discarding_area, gradient);
 	for (int lv = 1; lv < pm.size(); ++lv) {
 		cv::Size lvSize = pm[lv - 1].getColorPtr()->size() / 2;
 
@@ -40,7 +45,11 @@ void PixMix::init(
 			}
 		}
 
-		pm[lv].init(tmpColor, tmpMask, tmpDiscardings);
+        cv::Mat_<uchar> tmpGradient;
+        cv::resize(*(pm[lv - 1].getGradientPtr()), tmpGradient, lvSize, 0.0, 0.0, cv::INTER_LINEAR);
+        //threshold(tmpGradient, tmpGradient, 254, 255, CV_THRESH_BINARY);
+
+		pm[lv].init(tmpColor, tmpMask, tmpDiscardings, tmpGradient);
 	}
 
 	// for the final composite
@@ -50,11 +59,12 @@ void PixMix::init(
 
 void PixMix::execute(
 	cv::Mat_<cv::Vec3b> &dst,
-	const float alpha
+	const float scAlpha,
+    const float acAlpha
 )
 {
 	for (int lv = int(pm.size()) - 1; lv >= 0; --lv) {
-		pm[lv].execute(alpha, 2, 1, 0.5f);
+		pm[lv].execute(scAlpha, acAlpha, 2, 1, 0.5f);
 		if (lv > 0) fillInLowerLv(pm[lv], pm[lv - 1]);
 	}
 
