@@ -5,12 +5,19 @@
 #include "../diminished_reality/cv_utils.h"
 
 OneLvPixMix::OneLvPixMix()
-    : borderSize(2), borderSizePosMap(1), windowSize(5), toLeft(0, -1), toRight(0, 1), toUp(-1, 0), toDown(1, 0) // borderSize = windowSize / 2
+    : borderSize(2), borderSizePosMap(2), windowSize(5), toLeft(0, -1), toRight(0, 1), toUp(-1, 0), toDown(1, 0) // borderSize = windowSize / 2
 {
+    //vSptAdj = {
+    //    cv::Vec2i(-1, -1), cv::Vec2i(-1, 0), cv::Vec2i(-1, 1),
+    //    cv::Vec2i(0, -1),                   cv::Vec2i(0, 1),
+    //    cv::Vec2i(1, -1), cv::Vec2i(1, 0), cv::Vec2i(1, 1)
+    //};
     vSptAdj = {
-        cv::Vec2i(-1, -1), cv::Vec2i(-1, 0), cv::Vec2i(-1, 1),
-        cv::Vec2i(0, -1),                   cv::Vec2i(0, 1),
-        cv::Vec2i(1, -1), cv::Vec2i(1, 0), cv::Vec2i(1, 1)
+        cv::Vec2i(-2, -2), cv::Vec2i(-2, -1), cv::Vec2i(-2, 0), cv::Vec2i(-2, 1), cv::Vec2i(-2, 2),
+        cv::Vec2i(-1, -2), cv::Vec2i(-1, -1), cv::Vec2i(-1, 0), cv::Vec2i(-1, 1), cv::Vec2i(-1, 2),
+        cv::Vec2i(0, -2), cv::Vec2i(0, -1),                     cv::Vec2i(0, 1), cv::Vec2i(0, 2),
+        cv::Vec2i(1, -2), cv::Vec2i(1, -1), cv::Vec2i(1, 0), cv::Vec2i(1, 1), cv::Vec2i(1, 2),
+        cv::Vec2i(2, -2), cv::Vec2i(2, -1), cv::Vec2i(2, 0), cv::Vec2i(2, 1), cv::Vec2i(2, 2)
     };
 }
 
@@ -19,8 +26,7 @@ OneLvPixMix::~OneLvPixMix() {}
 void OneLvPixMix::init(
     const cv::Mat_<cv::Vec3b> &color,
     const cv::Mat_<uchar> &mask,
-    const cv::Mat_<uchar> &discarding_area,
-    const cv::Mat_<uchar> &gradient
+    const cv::Mat_<uchar> &discarding_area
 )
 {
     std::random_device rnd;
@@ -31,11 +37,9 @@ void OneLvPixMix::init(
     cv::copyMakeBorder(color, mColor[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
     cv::copyMakeBorder(mask, mMask[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
     cv::copyMakeBorder(discarding_area, mDiscardings[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
-    cv::copyMakeBorder(gradient, mGradient[W_BORDER], borderSize, borderSize, borderSize, borderSize, cv::BORDER_REFLECT);
     mColor[WO_BORDER] = cv::Mat(mColor[W_BORDER], cv::Rect(borderSize, borderSize, color.cols, color.rows));
     mMask[WO_BORDER] = cv::Mat(mMask[W_BORDER], cv::Rect(borderSize, borderSize, mask.cols, mask.rows));
     mDiscardings[WO_BORDER] = cv::Mat(mDiscardings[W_BORDER], cv::Rect(borderSize, borderSize, discarding_area.cols, discarding_area.rows));
-    mGradient[WO_BORDER] = cv::Mat(mGradient[W_BORDER], cv::Rect(borderSize, borderSize, gradient.cols, gradient.rows));
 
     mPosMap[WO_BORDER] = cv::Mat_<cv::Vec2i>(mColor[WO_BORDER].size());
     for (int r = 0; r < mPosMap[WO_BORDER].rows; ++r) {
@@ -45,73 +49,7 @@ void OneLvPixMix::init(
         }
     }
     cv::copyMakeBorder(mPosMap[WO_BORDER], mPosMap[W_BORDER], borderSizePosMap, borderSizePosMap, borderSizePosMap, borderSizePosMap, cv::BORDER_REFLECT);
-    mPosMap[WO_BORDER] = cv::Mat(mPosMap[W_BORDER], cv::Rect(1, 1, color.cols, color.rows));
-
-    //for(int count = 0; count < 10; count++) {
-    //    std::list<std::pair<cv::Vec2i, int>> priorPos;
-    //    for (int r = 0; r < mGradient[WO_BORDER].rows; ++r) {
-    //        for (int c = 0; c < mGradient[WO_BORDER].cols; ++c) {
-    //            if (mMask[WO_BORDER](r, c) != 0 || mDiscardings[WO_BORDER](r, c)) continue;  // マスク領域のみ処理する
-    //            if (mGradient[WO_BORDER](r, c) != 0) continue;
-
-    //            int g = 0;
-    //            for (int i = 0; i < windowSize; i++) {
-    //                uchar* ptrGradient = mGradient[W_BORDER].ptr<uchar>(r + i);
-    //                for (int j = 0; j < windowSize; j++) {
-    //                    g += ptrGradient[c + j];
-    //                }
-    //            }
-
-    //            if (g == 0) continue;
-
-    //            auto smaller_than_g_itr = std::find_if(priorPos.begin(), priorPos.end(), [&](const std::pair<cv::Vec2i, int>& pos) {
-    //                return pos.second < g;
-    //            }); // gより小さい要素のイテレータを取得
-
-    //            bool isInWindow = std::any_of(priorPos.begin(), smaller_than_g_itr, [&](const auto& pos) {
-    //                if (pos.first[0] == r && pos.first[1] == c) return true;
-    //                else return abs(pos.first[0] - r) < borderSize || abs(pos.first[1] - c) < borderSize;
-    //            });
-    //            if (isInWindow) continue;
-
-    //            priorPos.insert(smaller_than_g_itr, std::make_pair(cv::Vec2i(r, c), g));    // 降順に並べる
-    //        }
-    //    }
-
-    //    if (priorPos.size() == 0) break;
-
-    //    for (auto it = priorPos.begin(); it != priorPos.end(); it++) {
-    //        cv::Vec2i pos = (*it).first;
-    //        float minAc = std::numeric_limits<float>::max();
-    //        cv::Vec2i bestPos = cv::Vec2i::all(-1);
-    //        for (int r = 0; r < mGradient[WO_BORDER].rows; ++r) {
-    //            for (int c = 0; c < mGradient[WO_BORDER].cols; ++c) {
-    //                if (r == pos[0] && c == pos[1]) continue;
-
-    //                float ac = calcAppCost(pos, cv::Vec2i(r, c));
-
-    //                if (ac < minAc) {
-    //                    minAc = ac;
-    //                    bestPos = cv::Vec2i(r, c);
-    //                }
-    //            }
-    //        }
-
-    //        if (bestPos == cv::Vec2i::all(-1)) continue;
-
-    //        for (int i = 0; i < windowSize; i++) {
-    //            cv::Vec2i* ptrPosMap = mPosMap[W_BORDER].ptr<cv::Vec2i>(pos[0] + i);
-    //            uchar* ptrGradient = mGradient[W_BORDER].ptr<uchar>(pos[0] + i);
-    //            for (int j = 0; j < windowSize; j++) {
-    //                ptrPosMap[pos[1] + j] = bestPos + cv::Vec2i(i, j);
-    //                ptrGradient[pos[1] + j] = mGradient[W_BORDER](bestPos[0] + i, bestPos[1] + j);
-    //            }
-    //        }
-    //    }
-    //}
-
-    //cv::imshow("after sobel", mGradient[WO_BORDER]);
-    //cv::waitKey();
+    mPosMap[WO_BORDER] = cv::Mat(mPosMap[W_BORDER], cv::Rect(borderSizePosMap, borderSizePosMap, color.cols, color.rows));
 }
 
 void OneLvPixMix::execute(
@@ -217,6 +155,7 @@ float OneLvPixMix::calcConstrCost(
 )
 {
     return 0;
+    /*
     // image gradient distance
     constexpr float normFactor = 255.0f * 255.0f;
     float w = 0;
@@ -269,6 +208,7 @@ float OneLvPixMix::calcConstrCost(
     //return dist * w / (static_cast<float>(windowSize) * sqrt(2));
 
     return cc * w / normFactor;
+    */
 }
 
 float OneLvPixMix::calcDummyCost(
@@ -280,14 +220,106 @@ float OneLvPixMix::calcDummyCost(
     else return 0;
 }
 
-cv::Mat OneLvPixMix::leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center)
+float OneLvPixMix::calcVerticalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path)
+{
+    float error = cv::norm(mColor[WO_BORDER](colorRef) - newPatch(patchRef));
+    path.push_back(patchRef);
+
+    int colori = pos == BOUNDARY_POSITION::LEFT ? colorRef[0] + 1 : colorRef[0] - 1;
+    int patchi = pos == BOUNDARY_POSITION::LEFT ? patchRef[0] + 1 : patchRef[0] - 1;
+
+    if (colori < 0 || colori >= mColor[WO_BORDER].rows
+        || patchi < 0 || patchi >= newPatch.rows) {
+        return error;
+    }
+
+    float leftBottomError = std::numeric_limits<float>::max(), bottomError = std::numeric_limits<float>::max(), rightBottomError = std::numeric_limits<float>::max();
+    std::vector<cv::Vec2i> path1, path2, path3;
+    if (patchRef[1] - 1 >= minCol && patchRef[1] - 1 <= maxCol
+        && colorRef[1] - 1 >= 0 && colorRef[1] - 1 < mColor[WO_BORDER].cols
+        && patchRef[1] - 1 >= 0 && patchRef[1] - 1 < newPatch.cols) leftBottomError = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colori, colorRef[1] - 1), cv::Vec2i(patchi, patchRef[1] - 1), minCol, maxCol, pos, path1);
+    bottomError = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colori, colorRef[1]), cv::Vec2i(patchi, patchRef[1]), minCol, maxCol, pos, path2);
+    if (patchRef[1] + 1 >= minCol && patchRef[1] + 1 <= maxCol
+        && colorRef[1] + 1 >= 0 && colorRef[1] + 1 < mColor[WO_BORDER].cols
+        && patchRef[1] + 1 >= 0 && patchRef[1] + 1 < newPatch.cols) rightBottomError = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colori, colorRef[1] + 1), cv::Vec2i(patchi, patchRef[1] + 1), minCol, maxCol, pos, path3);
+
+    float minError = std::min(leftBottomError, std::min(bottomError, rightBottomError));
+    if (minError == std::numeric_limits<float>::max()) {
+        return error;   // 計算されなかった場合はそのまま返す
+    }
+
+    if (minError == leftBottomError) {
+        path.insert(path.end(), path1.begin(), path1.end());
+    }
+    else if (minError == bottomError) {
+        path.insert(path.end(), path2.begin(), path2.end());
+    }
+    else {
+        path.insert(path.end(), path3.begin(), path3.end());
+    }
+
+    return error + minError;
+}
+
+float OneLvPixMix::calcHorizontalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minRow, const int maxRow, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path)
+{
+    float error = cv::norm(mColor[WO_BORDER](colorRef) - newPatch(patchRef));
+    path.push_back(patchRef);
+
+    int colorj = pos == BOUNDARY_POSITION::TOP ? colorRef[1] + 1 : colorRef[1] - 1;
+    int patchj = pos == BOUNDARY_POSITION::TOP ? patchRef[1] + 1 : patchRef[1] - 1;
+
+    if (colorj < 0 || colorj >= mColor[WO_BORDER].cols
+        || patchj < 0 || patchj >= newPatch.cols) {
+        return error;
+    }
+
+    float rightTopError = std::numeric_limits<float>::max(), rightError = std::numeric_limits<float>::max(), rightBottomError = std::numeric_limits<float>::max();
+    std::vector<cv::Vec2i> path1, path2, path3;
+    if (patchRef[0] - 1 >= minRow && patchRef[0] - 1 <= maxRow
+        && colorRef[0] - 1 >= 0 && colorRef[0] - 1 < mColor[WO_BORDER].rows
+        && patchRef[0] - 1 >= 0 && patchRef[0] - 1 < newPatch.rows) rightTopError = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colorRef[0] - 1, colorj), cv::Vec2i(patchRef[0] - 1, patchj), minRow, maxRow, pos, path1);
+    rightError = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colorRef[0], colorj), cv::Vec2i(patchRef[0], patchj), minRow, maxRow, pos, path2);
+    if (patchRef[0] + 1 >= minRow && patchRef[0] + 1 <= maxRow
+        && colorRef[0] + 1 >= 0 && colorRef[0] + 1 < mColor[WO_BORDER].rows
+        && patchRef[0] + 1 >= 0 && colorRef[0] + 1 < newPatch.rows) rightBottomError = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(colorRef[0] + 1, colorj), cv::Vec2i(patchRef[0] + 1, patchj), minRow, maxRow, pos, path3);
+
+    float minError = std::min(rightTopError, std::min(rightError, rightBottomError));
+    if (minError == std::numeric_limits<float>::max()) {
+        return error;   // 計算されなかった場合はそのまま返す
+    }
+
+    if (minError == rightTopError) {
+        path.insert(path.end(), path1.begin(), path1.end());
+    }
+    else if (minError == rightError) {
+        path.insert(path.end(), path2.begin(), path2.end());
+    }
+    else {
+        path.insert(path.end(), path3.begin(), path3.end());
+    }
+
+    return error + minError;
+}
+
+cv::Mat OneLvPixMix::leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
 {
     cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = 0; i <= borderSize; i++) {
+        for (int j = 0; j <= borderSize; j++) {
+            if (maskPatch(borderSize + i, borderSize + j) != 0
+                && discardPatch(borderSize + i, borderSize + j) != 0) newPatchMask(borderSize + i, borderSize + j) = 1; // 右下部分
+        }
+    }
+
     for (int i = borderSize; i >= -borderSize; i--) {   // 下から上へ探索
         std::vector<float> e_h;
 
-        for (int j = -1; j >= -borderSize; j--) { // 右から左へ探索．左半分だけ処理
-            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols) {
+        for (int j = 0; j >= -borderSize; j--) { // 右から左へ探索．左半分だけ処理
+            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols
+                || maskPatch(borderSize + i, borderSize + j) == 0   // マスク領域
+                || discardPatch(borderSize + i, borderSize + j) == 0) { // 除外エリア
                 e_h.push_back(std::numeric_limits<float>::max());
             }
             else {
@@ -300,21 +332,32 @@ cv::Mat OneLvPixMix::leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch
         int min_idx = std::distance(e_h.begin(), min_itr);
 
         for (int k = min_idx; k >= 0; k--) {
-            newPatchMask(borderSize + i, borderSize - (k + 1)) = 1; // newPatchで埋める部分は1とする
+            if (maskPatch(borderSize + i, borderSize - k) != 0
+                && discardPatch(borderSize + i, borderSize - k) != 0) newPatchMask(borderSize + i, borderSize - k) = 1; // newPatchで埋める部分は1とする
         }
     }
 
     return newPatchMask;
 }
 
-cv::Mat OneLvPixMix::rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center)
+cv::Mat OneLvPixMix::rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
 {
     cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = -borderSize; i <= 0; i++) {
+        for (int j = -borderSize; j <= 0; j++) {
+            if (maskPatch(borderSize + i, borderSize + j) != 0
+                && discardPatch(borderSize + i, borderSize + j) != 0) newPatchMask(borderSize + i, borderSize + j) = 1;   // 左上
+        }
+    }
+
     for (int i = -borderSize; i <= borderSize; i++) {   // 上から下へ探索
         std::vector<float> e_h;
 
-        for (int j = 1; j <= borderSize; j++) { // 左から右へ探索．右半分だけ処理
-            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols) {
+        for (int j = 0; j <= borderSize; j++) { // 左から右へ探索．右半分だけ処理
+            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols
+                || maskPatch(borderSize + i, borderSize + j) == 0   // マスク領域
+                || discardPatch(borderSize + i, borderSize + j) == 0) {
                 e_h.push_back(std::numeric_limits<float>::max());
             }
             else {
@@ -327,21 +370,245 @@ cv::Mat OneLvPixMix::rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatc
         int min_idx = std::distance(e_h.begin(), min_itr);
 
         for (int k = min_idx; k >= 0; k--) {
-            newPatchMask(borderSize + i, borderSize + (k + 1)) = 1; // newPatchで埋める部分は1とする
+            if (maskPatch(borderSize + i, borderSize + k) != 0
+                && discardPatch(borderSize + i, borderSize + k) != 0) newPatchMask(borderSize + i, borderSize + k) = 1; // newPatchで埋める部分は1とする
         }
     }
 
     return newPatchMask;
 }
 
-cv::Mat OneLvPixMix::topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center)
+cv::Mat OneLvPixMix::TopLeftBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
 {
     cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = borderSize; i < newPatchMask.rows; i++) {
+        for (int j = borderSize; j < newPatchMask.cols; j++) {
+            if (maskPatch(i, j) != 0
+                && discardPatch(i, j) != 0) newPatchMask(i, j) = 1; // 右下部分
+        }
+    }
+
+    std::vector<std::vector<cv::Vec2i>> paths1, paths2;
+    std::vector<float> errors1, errors2;
+    for (int i = -borderSize; i <= 0; i++) {    // 上側
+        std::vector<cv::Vec2i> path;
+        float e = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + i, center[1] + i), cv::Vec2i(borderSize + i, borderSize + i), 0, borderSize, BOUNDARY_POSITION::TOP, path);
+        paths1.push_back(path);
+        errors1.push_back(e);
+    }
+
+    for (int j = -borderSize; j <= 0; j++) {    // 左側
+        std::vector<cv::Vec2i> path;
+        float e = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + j, center[1] + j), cv::Vec2i(borderSize + j, borderSize + j), 0, borderSize, BOUNDARY_POSITION::LEFT, path);
+        paths2.push_back(path);
+        errors2.push_back(e);
+    }
+
+    float min = std::numeric_limits<float>::max();
+    int min_idx = 0;
+    for (int i = 0, iend = paths1.size(); i < iend; i++) {
+        float e = errors1[i] + errors2[i] - cv::norm(mColor[WO_BORDER](center[0] - borderSize + paths1[i][0][0], center[1] - borderSize + paths1[i][0][1]) - newPatch(paths1[i][0]));
+        if (e < min) {
+            min = e;
+            min_idx = i;
+        }
+    }
+
+    std::vector<cv::Vec2i> path_h = paths1[min_idx];
+    std::vector<cv::Vec2i> path_v = paths2[min_idx];
+
+    for (int i = 0, iend = path_h.size(); i < iend; i++) {
+        int c = path_h[i][1];
+        for (int k = path_h[i][0]; k <= borderSize; k++) {  // 各列で下方向に探索
+            if (newPatchMask(k, c) == 1) break;
+            if (maskPatch(k, c) != 0 && discardPatch(k, c) != 0) newPatchMask(k, c) = 1;
+
+            bool isEnd = std::find_if(path_v.begin(), path_v.end(), [&](const auto& v) {
+                return v[0] == k && v[1] == c;
+            }) != path_v.end();
+            if (isEnd) break;
+        }
+    }
+    for (int i = 0, iend = path_v.size(); i < iend; i++) {
+        int r = path_v[i][0];
+        for (int k = path_v[i][1]; k <= borderSize; k++) {    // 各行で右方向に探索
+            if (newPatchMask(r, k) == 1) break;
+            if (maskPatch(r, k) != 0 && discardPatch(r, k) != 0) newPatchMask(r, k) = 1;
+
+            bool isEnd = std::find_if(path_h.begin(), path_h.end(), [&](const auto& h) {
+                return h[0] == r && h[1] == k;
+            }) != path_h.end();
+            if (isEnd) break;
+        }
+    }
+
+    //std::cout << newPatchMask << std::endl;
+    return newPatchMask;
+}
+
+cv::Mat OneLvPixMix::BottomRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
+{
+    cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = 0; i <= borderSize; i++) {
+        for (int j = 0; j <= borderSize; j++) {
+            if (maskPatch(i, j) != 0
+                && discardPatch(i, j) != 0) newPatchMask(i, j) = 1; // 左上部分
+        }
+    }
+
+    std::vector<std::vector<cv::Vec2i>> paths1, paths2;
+    std::vector<float> errors1, errors2;
+    for (int i = borderSize; i >= 0; i--) { // 下側
+        std::vector<cv::Vec2i> path;
+        float e = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + i, center[1] + i), cv::Vec2i(borderSize + i, borderSize + i), borderSize, newPatch.rows - 1, BOUNDARY_POSITION::BOTTOM, path);
+        paths1.push_back(path);
+        errors1.push_back(e);
+    }
+
+    for (int j = borderSize; j >= 0; j--) { // 右側
+        std::vector<cv::Vec2i> path;
+        float e = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + j, center[1] + j), cv::Vec2i(borderSize + j, borderSize + j), borderSize, newPatch.cols - 1, BOUNDARY_POSITION::RIGHT, path);
+        paths2.push_back(path);
+        errors2.push_back(e);
+    }
+
+    float min = std::numeric_limits<float>::max();
+    int min_idx = 0;
+    for (int i = 0, iend = paths1.size(); i < iend; i++) {
+        float e = errors1[i] + errors2[i] - cv::norm(mColor[WO_BORDER](center[0] - borderSize + paths1[i][0][0], center[1] - borderSize + paths1[i][0][1]) - newPatch(paths1[i][0]));
+        if (e < min) {
+            min = e;
+            min_idx = i;
+        }
+    }
+
+    std::vector<cv::Vec2i> path_h = paths1[min_idx];
+    std::vector<cv::Vec2i> path_v = paths2[min_idx];
+
+    //for (const auto& p : path_h) {
+    //    std::cout << p << " ";
+    //}std::cout << std::endl;
+    //for (const auto& p : path_v) {
+    //    std::cout << p << " ";
+    //}std::cout << std::endl;
+
+    for (int i = 0, iend = path_h.size(); i < iend; i++) {
+        int c = path_h[i][1];
+        for (int k = path_h[i][0]; k >= borderSize; k--) {  // 各列で上方向に探索
+            if (newPatchMask(k, c) == 1) break;
+            if (maskPatch(k, c) != 0 && discardPatch(k, c) != 0) newPatchMask(k, c) = 1;
+
+            bool isEnd = std::find_if(path_v.begin(), path_v.end(), [&](const auto& v) {
+                return v[0] == k && v[1] == c;
+            }) != path_v.end();
+            if (isEnd) break;
+        }
+    }
+    for (int i = 0, iend = path_v.size(); i < iend; i++) {
+        int r = path_v[i][0];
+        for (int k = path_v[i][1]; k >= borderSize; k--) {  // 各行で左方向に探索
+            if (newPatchMask(r, k) == 1) break;
+            if (maskPatch(r, k) != 0 && discardPatch(r, k) != 0) newPatchMask(r, k) = 1;
+
+            bool isEnd = std::find_if(path_h.begin(), path_h.end(), [&](const auto& h) {
+                return h[0] == r && h[1] == k;
+            }) != path_h.end();
+            if (isEnd) break;
+        }
+    }
+
+    //std::cout << newPatchMask << std::endl;
+    return newPatchMask;
+}
+
+cv::Mat OneLvPixMix::topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
+{
+    cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = 0; i <= borderSize; i++) {
+        for (int j = 0; j <= borderSize; j++) {
+            if (maskPatch(borderSize + i, borderSize + j) != 0
+                && discardPatch(borderSize + i, borderSize + j) != 0) newPatchMask(borderSize + i, borderSize + j) = 1; // 右下部分
+        }
+    }
+
+    //std::vector<std::vector<cv::Vec2i>> paths1, paths2;
+    //std::vector<float> errors1, errors2;
+    //for (int i = -borderSize; i <= 0; i++) { // 上側
+    //    std::vector<cv::Vec2i> path;
+    //    float e = calcHorizontalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + i, center[1] + i), cv::Vec2i(borderSize + i, borderSize + i), 0, borderSize, path);
+    //    paths1.push_back(path);
+    //    errors1.push_back(e);
+    //}
+
+    //for (int j = -borderSize; j <= 0; j++) {    // 左側
+    //    std::vector<cv::Vec2i> path;
+    //    float e = calcVerticalBoundaryError(newPatch, maskPatch, discardPatch, cv::Vec2i(center[0] + j, center[1] + j), cv::Vec2i(borderSize + j, borderSize + j), 0, borderSize, path);
+    //    paths2.push_back(path);
+    //    errors2.push_back(e);
+    //}
+
+    //float min = std::numeric_limits<float>::max();
+    //int min_idx = 0;
+    //for (int i = 0; i < paths1.size(); i++) {
+    //    float e = errors1[i] + errors2[i] - cv::norm(mColor[WO_BORDER](center[0] - borderSize + paths1[i][0][0], center[1] - borderSize + paths1[i][0][1]) - newPatch(paths1[i][0]));
+    //    if (e < min) {
+    //        min = e;
+    //        min_idx = i;
+    //    }
+    //}
+
+    //std::cout << "min: " << std::endl;
+    //for (int i = 0; i < paths1[min_idx].size(); i++) {
+    //    std::cout << paths1[min_idx][i] << " ";
+    //}
+    //std::cout << std::endl;
+    //for (int i = 0; i < paths2[min_idx].size(); i++) {
+    //    std::cout << paths2[min_idx][i] << " ";
+    //}
+    //std::cout << std::endl;
+
+    //for (int i = 0; i < paths1[min_idx].size(); i++) {
+    //    int c = paths1[min_idx][i][1];
+    //    for (int k = paths1[min_idx][i][0]; k <= windowSize - 1; k++) {
+    //        if (newPatchMask(k, c) == 1) break;
+    //        if (maskPatch(k, c) != 0 && discardPatch(k, c) != 0) newPatchMask(k, c) = 1;
+    //    }
+    //}
+    //for (int i = 0; i < paths2[min_idx].size(); i++) {
+    //    int r = paths2[min_idx][i][0];
+    //    for (int k = paths2[min_idx][i][1]; k <= windowSize - 1; k++) {
+    //        if (newPatchMask(r, k) == 1) break;
+    //        if (maskPatch(r, k) != 0 && discardPatch(r, k) != 0) newPatchMask(r, k) = 1;
+    //    }
+    //}
+    //std::cout << newPatchMask << std::endl;
+    //for (int i = 0; i < paths1.size(); i++) {
+
+    //    std::cout << paths1[i].size() << std::endl;
+    //    for (int j = 0; j < paths1[i].size(); j++) {
+    //        std::cout << paths1[i][j] << " ";
+    //    }
+    //    std::cout << std::endl << "error: " << errors1[i] << std::endl;
+    //}
+    //for (int i = 0; i < paths2.size(); i++) {
+
+    //    std::cout << paths2[i].size() << std::endl;
+    //    for (int j = 0; j < paths2[i].size(); j++) {
+    //        std::cout << paths2[i][j] << " ";
+    //    }
+    //    std::cout << std::endl << "error: " << errors2[i] << std::endl;
+    //}
+
     for (int j = borderSize; j >= -borderSize; j--) {   // 右から左へ探索
         std::vector<float> e_v;
 
-        for (int i = -1; i >= -borderSize; i--) {   // 下から上へ探索
-            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols) {
+        for (int i = 0; i >= -borderSize; i--) {   // 下から上へ探索
+            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols
+                || maskPatch(borderSize + i, borderSize + j) == 0   // マスク領域
+                || discardPatch(borderSize + i, borderSize + j) == 0) {
                 e_v.push_back(std::numeric_limits<float>::max());
             }
             else {
@@ -354,21 +621,32 @@ cv::Mat OneLvPixMix::topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatc
         int min_idx = std::distance(e_v.begin(), min_itr);
 
         for (int k = min_idx; k >= 0; k--) {
-            newPatchMask(borderSize - (k + 1), borderSize + j) = 1; // newPatchで埋める部分は1とする
+            if (maskPatch(borderSize - k, borderSize + j) != 0
+                && discardPatch(borderSize - k, borderSize + j) != 0) newPatchMask(borderSize - k, borderSize + j) = 1; // newPatchで埋める部分は1とする
         }
     }
 
     return newPatchMask;
 }
 
-cv::Mat OneLvPixMix::bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center)
+cv::Mat OneLvPixMix::bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center)
 {
     cv::Mat_<uchar> newPatchMask = cv::Mat_<uchar>(newPatch.rows, newPatch.cols, (uchar)0);
+    //newPatchMask(borderSize, borderSize) = 1;
+    for (int i = -borderSize; i <= 0; i++) {
+        for (int j = -borderSize; j <= 0; j++) {
+            if (maskPatch(borderSize + i, borderSize + j) != 0
+                && discardPatch(borderSize + i, borderSize + j) != 0) newPatchMask(borderSize + i, borderSize + j) = 1;   // 左上
+        }
+    }
+
     for (int j = -borderSize; j <= borderSize; j++) {   // 左から右に探索
         std::vector<float> e_v;
 
-        for (int i = 1; i <= borderSize; i++) { // 上から下へ探索
-            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols) {
+        for (int i = 0; i <= borderSize; i++) { // 上から下へ探索
+            if (center[0] + i < 0 || center[1] + j < 0 || center[0] + i >= mColor[WO_BORDER].rows || center[1] + j >= mColor[WO_BORDER].cols
+                || maskPatch(borderSize + i, borderSize + j) == 0   // マスク領域
+                || discardPatch(borderSize + i, borderSize + j) == 0) {
                 e_v.push_back(std::numeric_limits<float>::max());
             }
             else {
@@ -381,7 +659,8 @@ cv::Mat OneLvPixMix::bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newP
         int min_idx = std::distance(e_v.begin(), min_itr);
 
         for (int k = min_idx; k >= 0; k--) {
-            newPatchMask(borderSize + (k + 1), borderSize + j) = 1; // newPatchで埋める部分は1とする
+            if (maskPatch(borderSize + k, borderSize + j) != 0
+                && discardPatch(borderSize + k, borderSize + j) != 0) newPatchMask(borderSize + k, borderSize + j) = 1; // newPatchで埋める部分は1とする
         }
     }
 
@@ -445,18 +724,42 @@ void OneLvPixMix::fwdUpdate(
                 if (costRand < cost) ptrPosMap[target[1]] = refRand;
 
                 cv::Mat_<cv::Vec3b> newPatch(windowSize, windowSize, cv::Vec3b::all(0));
+                cv::Mat_<uchar> maskPatch(windowSize, windowSize, (uchar)0), discardPatch(windowSize, windowSize, (uchar)0);
+                for (int i = -borderSize; i <= borderSize; i++) {
+                    for (int j = -borderSize; j <= borderSize; j++) {
+                        cv::Vec2i srcPos = ptrPosMap[target[1]] + cv::Vec2i(i, j);
+                        cv::Vec2i targetPos = cv::Vec2i(target[0] + i, target[1] + j);
+
+                        if (targetPos[0] < 0 || targetPos[1] < 0 || targetPos[0] >= mPosMap[WO_BORDER].rows || targetPos[1] >= mPosMap[WO_BORDER].cols) continue;
+                        if (srcPos[0] < 0 || srcPos[1] < 0 || srcPos[0] >= mPosMap[WO_BORDER].rows || srcPos[1] >= mPosMap[WO_BORDER].cols) continue;
+
+                        //mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);
+                        newPatch(borderSize + i, borderSize + j) = mColor[WO_BORDER](srcPos);
+                        maskPatch(borderSize + i, borderSize + j) = mMask[WO_BORDER](srcPos);
+                        discardPatch(borderSize + i, borderSize + j) = mDiscardings[WO_BORDER](srcPos);
+                    }
+                }
+
+                //cv::Mat_<uchar> leftNewPatchMask = leftVerticalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> topNewPatchMask = topHorizontalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> rightNewPatchMask = rightVerticalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> bottomNewPatchMask = bottomHorizontalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                cv::Mat_<uchar> newPatchMask;
+                //cv::bitwise_or(leftNewPatchMask, topNewPatchMask, newPatchMask);
+                //cv::bitwise_or(newPatchMask, rightNewPatchMask, newPatchMask);
+                //cv::bitwise_or(newPatchMask, bottomNewPatchMask, newPatchMask);
+                newPatchMask = TopLeftBoundaryCut(newPatch, maskPatch, discardPatch, target);
+
                 for (int i = -borderSize; i <= borderSize; i++) {
                     for (int j = -borderSize; j <= borderSize; j++) {
                         if (target[0] + i < 0 || target[1] + j < 0 || target[0] + i >= mPosMap[WO_BORDER].rows || target[1] + j >= mPosMap[WO_BORDER].cols) continue;
                         if (ptrPosMap[target[1]][0] + i < 0 || ptrPosMap[target[1]][1] + j < 0 || ptrPosMap[target[1]][0] + i >= mPosMap[WO_BORDER].rows || ptrPosMap[target[1]][1] + j >= mPosMap[WO_BORDER].cols) continue;
 
-                        mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);
-                        newPatch(borderSize + i, borderSize + j) = mColor[WO_BORDER](ptrPosMap[target[1]] + cv::Vec2i(i, j));
+                        if (newPatchMask(borderSize + i, borderSize + j) != 0) {
+                            mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);  // texture quilting
+                        }
                     }
                 }
-
-                cv::Mat m = bottomHorizontalBoundaryCut(newPatch, target);
-                std::cout << m << std::endl;
             }
         }
     }
@@ -518,12 +821,41 @@ void OneLvPixMix::bwdUpdate(
 
                 if (costRand < cost) ptrPosMap[target[1]] = refRand;
 
+                cv::Mat_<cv::Vec3b> newPatch(windowSize, windowSize, cv::Vec3b::all(0));
+                cv::Mat_<uchar> maskPatch(windowSize, windowSize, (uchar)0), discardPatch(windowSize, windowSize, (uchar)0);
+                for (int i = -borderSize; i <= borderSize; i++) {
+                    for (int j = -borderSize; j <= borderSize; j++) {
+                        cv::Vec2i srcPos = ptrPosMap[target[1]] + cv::Vec2i(i, j);
+                        cv::Vec2i targetPos = cv::Vec2i(target[0] + i, target[1] + j);
+
+                        if (targetPos[0] < 0 || targetPos[1] < 0 || targetPos[0] >= mPosMap[WO_BORDER].rows || targetPos[1] >= mPosMap[WO_BORDER].cols) continue;
+                        if (srcPos[0] < 0 || srcPos[1] < 0 || srcPos[0] >= mPosMap[WO_BORDER].rows || srcPos[1] >= mPosMap[WO_BORDER].cols) continue;
+
+                        //mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);
+                        newPatch(borderSize + i, borderSize + j) = mColor[WO_BORDER](srcPos);
+                        maskPatch(borderSize + i, borderSize + j) = mMask[WO_BORDER](srcPos);
+                        discardPatch(borderSize + i, borderSize + j) = mDiscardings[WO_BORDER](srcPos);
+                    }
+                }
+
+                //cv::Mat_<uchar> rightNewPatchMask = rightVerticalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> bottomNewPatchMask = bottomHorizontalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> leftNewPatchMask = leftVerticalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                //cv::Mat_<uchar> topNewPatchMask = topHorizontalBoundaryCut(newPatch, maskPatch, discardPatch, target);
+                cv::Mat_<uchar> newPatchMask;
+                //cv::bitwise_or(rightNewPatchMask, bottomNewPatchMask, newPatchMask);
+                //cv::bitwise_or(newPatchMask, leftNewPatchMask, newPatchMask);
+                //cv::bitwise_or(newPatchMask, topNewPatchMask, newPatchMask);
+                newPatchMask = BottomRightBoundaryCut(newPatch, maskPatch, discardPatch, target);
+
                 for (int i = -borderSize; i <= borderSize; i++) {
                     for (int j = -borderSize; j <= borderSize; j++) {
                         if (target[0] + i < 0 || target[1] + j < 0 || target[0] + i >= mPosMap[WO_BORDER].rows || target[1] + j >= mPosMap[WO_BORDER].cols) continue;
                         if (ptrPosMap[target[1]][0] + i < 0 || ptrPosMap[target[1]][1] + j < 0 || ptrPosMap[target[1]][0] + i >= mPosMap[WO_BORDER].rows || ptrPosMap[target[1]][1] + j >= mPosMap[WO_BORDER].cols) continue;
 
-                        mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);
+                        if (newPatchMask(borderSize + i, borderSize + j) != 0) {
+                            mPosMap[WO_BORDER](target[0] + i, target[1] + j) = ptrPosMap[target[1]] + cv::Vec2i(i, j);  // texture quilting
+                        }
                     }
                 }
             }

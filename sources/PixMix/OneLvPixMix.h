@@ -11,14 +11,13 @@ public:
 	OneLvPixMix();
 	~OneLvPixMix();
 
-	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area, const cv::Mat_<uchar>& gradient);
+	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area);
 	// NOTE: Increasing "maxItr" and "maxRandSearchItr" will improve the quality of results but will decrease the speed as well
 	void execute(const float scAlpha, const float acAlpha, const int maxItr, const int maxRandSearchItr, const float threshDist);
 
 	cv::Mat_<cv::Vec3b> *getColorPtr();
 	cv::Mat_<uchar> *getMaskPtr();
 	cv::Mat_<uchar> *getDiscardingAreaPtr();
-    cv::Mat_<uchar> *getGradientPtr();
 	cv::Mat_<cv::Vec2i> *getPosMapPtr();
 
 private:
@@ -30,8 +29,6 @@ private:
 	cv::Mat_<cv::Vec3b> mColor[2];
 	cv::Mat_<uchar> mMask[2];
 	cv::Mat_<uchar> mDiscardings[2];
-    cv::Mat_<uchar> mGradient[2];
-    cv::Mat_<uchar> mEdge[2];
 	cv::Mat_<cv::Vec2i> mPosMap[2];	// current position map: f
 
 	const cv::Vec2i toLeft;
@@ -52,7 +49,7 @@ private:
 		const cv::Vec2i &target,
 		const cv::Vec2i &ref,
 		float maxDist,		// tau_s
-		float w = 0.125f	// 1.0f / 8.0f
+		float w = 0.04f//0.125f	// 1.0f / 8.0f
 	);
     float calcAppCost(
         const cv::Vec2i &target,
@@ -67,10 +64,18 @@ private:
         const cv::Vec2i &ref
     );
 
-    cv::Mat leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center);
-    cv::Mat rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center);
-    cv::Mat topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center);
-    cv::Mat bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Vec2i& center);
+    enum BOUNDARY_POSITION {
+        LEFT, RIGHT, TOP, BOTTOM
+    };
+
+    float calcVerticalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
+    float calcHorizontalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
+    cv::Mat TopLeftBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat BottomRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
 
 	void fwdUpdate(
 		const float scAlpha,
@@ -99,10 +104,6 @@ inline cv::Mat_<uchar> *OneLvPixMix::getMaskPtr()
 inline cv::Mat_<uchar> *OneLvPixMix::getDiscardingAreaPtr()
 {
 	return &(mDiscardings[WO_BORDER]);
-}
-inline cv::Mat_<uchar> *OneLvPixMix::getGradientPtr()
-{
-    return &(mGradient[WO_BORDER]);
 }
 inline cv::Mat_<cv::Vec2i> *OneLvPixMix::getPosMapPtr()
 {
