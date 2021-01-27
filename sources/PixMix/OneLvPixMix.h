@@ -23,7 +23,9 @@ public:
 private:
 	const int borderSize;
 	const int borderSizePosMap;
+    const int borderSizeColorPatch;
 	const int windowSize;
+    const int windowSizeColorPatch;
 
 	enum { WO_BORDER = 0, W_BORDER = 1 };
 	cv::Mat_<cv::Vec3b> mColor[2];
@@ -71,6 +73,7 @@ private:
     float calcVerticalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
     float calcHorizontalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
     cv::Mat TopLeftBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat TopRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
     cv::Mat BottomRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
     cv::Mat leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
     cv::Mat rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
@@ -82,14 +85,16 @@ private:
 		const float acAlpha,
         const float ccAlpha,
 		const float thDist,
-		const int maxRandSearchItr
+		const int maxRandSearchItr,
+        const bool pixelWise = false
 	);
-	void bwdUpdate(
-		const float scAlpha,
-		const float acAlpha,
+    void bwdUpdate(
+        const float scAlpha,
+        const float acAlpha,
         const float ccAlpha,
-		const float thDist,
-		const int maxRandSearchItr
+        const float thDist,
+        const int maxRandSearchItr,
+        const bool pixelWise = false
 	);
 };
 

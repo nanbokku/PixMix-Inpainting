@@ -55,7 +55,7 @@ void PixMix::execute(
 )
 {
 	for (int lv = int(pm.size()) - 1; lv >= 0; --lv) {
-		pm[lv].execute(scAlpha, acAlpha, 2, 200, 0.5f);
+		pm[lv].execute(scAlpha, acAlpha, 2, 30, 0.5f);
 		if (lv > 0) fillInLowerLv(pm[lv], pm[lv - 1]);
 	}
 
@@ -72,7 +72,7 @@ int PixMix::calcPyrmLv(
 
 	while ((size /= 2) >= 5) ++pyrmLv;
 
-	return std::min(pyrmLv, 6);
+    return std::min(pyrmLv, 6);
 }
 
 void PixMix::fillInLowerLv(
