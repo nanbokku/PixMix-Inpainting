@@ -58,23 +58,23 @@ void OneLvPixMix::execute(
     bwdUpdate(0.0f, 1.0f, 0.0f, thDist, maxRandSearchItr);
 
     for (int itr = 0; itr < maxItr; ++itr) {
-        cv::Mat_<cv::Vec3b> vizPosMap, vizColor;
-        Util::createVizPosMap(mPosMap[WO_BORDER], vizPosMap);
-        cv::resize(vizPosMap, vizPosMap, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
-        cv::imshow("prev posMap", vizPosMap);
-        cv::resize(mColor[WO_BORDER], vizColor, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
-        cv::imshow("prev color", vizColor);
-        cv::waitKey(1);
+        //cv::Mat_<cv::Vec3b> vizPosMap, vizColor;
+        //Util::createVizPosMap(mPosMap[WO_BORDER], vizPosMap);
+        //cv::resize(vizPosMap, vizPosMap, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
+        //cv::imshow("prev posMap", vizPosMap);
+        //cv::resize(mColor[WO_BORDER], vizColor, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
+        //cv::imshow("prev color", vizColor);
+        //cv::waitKey(1);
 
         if (itr % 2 == 0) bwdUpdate(scAlpha, acAlpha, ccAlpha, thDist, maxRandSearchItr);
         else fwdUpdate(scAlpha, acAlpha, ccAlpha, thDist, maxRandSearchItr);
 
-        Util::createVizPosMap(mPosMap[WO_BORDER], vizPosMap);
-        cv::resize(vizPosMap, vizPosMap, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
-        cv::imshow("curr posMap", vizPosMap);
-        cv::resize(mColor[WO_BORDER], vizColor, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
-        cv::imshow("curr color", vizColor);
-        cv::waitKey(1);
+        //Util::createVizPosMap(mPosMap[WO_BORDER], vizPosMap);
+        //cv::resize(vizPosMap, vizPosMap, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
+        //cv::imshow("curr posMap", vizPosMap);
+        //cv::resize(mColor[WO_BORDER], vizColor, cv::Size(640, 480), 0.0, 0.0, cv::INTER_NEAREST);
+        //cv::imshow("curr color", vizColor);
+        //cv::waitKey(1);
 
         inpaint();
     }
