@@ -33,13 +33,19 @@ void PixMix::init(
 
 		cv::Mat_<uchar> tmpDiscardings;
 		cv::resize(*(pm[lv - 1].getDiscardingAreaPtr()), tmpDiscardings, lvSize, 0.0, 0.0, cv::INTER_LINEAR);
+        bool is_all_black = true;
 		for (int r = 0; r < tmpDiscardings.rows; ++r) {
 			uchar *ptrDiscardings = tmpDiscardings.ptr<uchar>(r);
 			for (int c = 0; c < tmpDiscardings.cols; ++c) {
 				ptrDiscardings[c] = ptrDiscardings[c] < 255 ? 0 : 255;
+                if (is_all_black && ptrDiscardings[c] != 0) is_all_black = false;
 			}
 		}
 
+        if (is_all_black) { // copyMakeBorder‚ÌƒoƒOH‰ñ”ð
+            pm.resize(lv);
+            break;
+        }
 		pm[lv].init(tmpColor, tmpMask, tmpDiscardings);
 	}
 
@@ -50,11 +56,12 @@ void PixMix::init(
 
 void PixMix::execute(
 	cv::Mat_<cv::Vec3b> &dst,
-	const float alpha
+	const float scAlpha,
+    const float acAlpha
 )
 {
 	for (int lv = int(pm.size()) - 1; lv >= 0; --lv) {
-		pm[lv].execute(alpha, 2, 1, 0.5f);
+		pm[lv].execute(scAlpha, acAlpha, 2, 30, 0.5f);
 		if (lv > 0) fillInLowerLv(pm[lv], pm[lv - 1]);
 	}
 
@@ -71,7 +78,7 @@ int PixMix::calcPyrmLv(
 
 	while ((size /= 2) >= 5) ++pyrmLv;
 
-	return std::min(pyrmLv, 6);
+    return std::min(pyrmLv, 6);
 }
 
 void PixMix::fillInLowerLv(

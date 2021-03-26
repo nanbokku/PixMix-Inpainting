@@ -13,7 +13,7 @@ public:
 
 	void init(const cv::Mat_<cv::Vec3b> &color, const cv::Mat_<uchar> &mask, const cv::Mat_<uchar>& discarding_area);
 	// NOTE: Increasing "maxItr" and "maxRandSearchItr" will improve the quality of results but will decrease the speed as well
-	void execute(const float scAlpha, const int maxItr, const int maxRandSearchItr, const float threshDist);
+	void execute(const float scAlpha, const float acAlpha, const int maxItr, const int maxRandSearchItr, const float threshDist);
 
 	cv::Mat_<cv::Vec3b> *getColorPtr();
 	cv::Mat_<uchar> *getMaskPtr();
@@ -23,7 +23,9 @@ public:
 private:
 	const int borderSize;
 	const int borderSizePosMap;
+    const int borderSizeColorPatch;
 	const int windowSize;
+    const int windowSizeColorPatch;
 
 	enum { WO_BORDER = 0, W_BORDER = 1 };
 	cv::Mat_<cv::Vec3b> mColor[2];
@@ -49,29 +51,50 @@ private:
 		const cv::Vec2i &target,
 		const cv::Vec2i &ref,
 		float maxDist,		// tau_s
-		float w = 0.125f	// 1.0f / 8.0f
+		float w = 0.04f//0.125f	// 1.0f / 8.0f
 	);
-	float calcAppCost(
-		const cv::Vec2i &target,
-		const cv::Vec2i &ref,
-		float w = 0.04f		// 1.0f / 25.0f
+    float calcAppCost(
+        const cv::Vec2i &target,
+        const cv::Vec2i &ref,
+        float w = 0.04f		// 1.0f / 25.0f
 	);
-	int calcConstrCost(
-		const int row,
-		const int col
+	float calcConstrCost(
+        const cv::Vec2i &target,
+        const cv::Vec2i &ref
 	);
+    float calcDummyCost(
+        const cv::Vec2i &ref
+    );
+
+    enum BOUNDARY_POSITION {
+        LEFT, RIGHT, TOP, BOTTOM
+    };
+
+    float calcVerticalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
+    float calcHorizontalBoundaryError(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& colorRef, const cv::Vec2i& patchRef, const int minCol, const int maxCol, const BOUNDARY_POSITION pos, std::vector<cv::Vec2i>& path);
+    cv::Mat TopLeftBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat TopRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat BottomRightBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat leftVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat rightVerticalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat topHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
+    cv::Mat bottomHorizontalBoundaryCut(const cv::Mat_<cv::Vec3b>& newPatch, const cv::Mat_<uchar>& maskPatch, const cv::Mat_<uchar>& discardPatch, const cv::Vec2i& center);
 
 	void fwdUpdate(
 		const float scAlpha,
 		const float acAlpha,
+        const float ccAlpha,
 		const float thDist,
-		const int maxRandSearchItr
+		const int maxRandSearchItr,
+        const bool pixelWise = false
 	);
-	void bwdUpdate(
-		const float scAlpha,
-		const float acAlpha,
-		const float thDist,
-		const int maxRandSearchItr
+    void bwdUpdate(
+        const float scAlpha,
+        const float acAlpha,
+        const float ccAlpha,
+        const float thDist,
+        const int maxRandSearchItr,
+        const bool pixelWise = false
 	);
 };
 
